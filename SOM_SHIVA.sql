@@ -2991,7 +2991,7 @@ FROM CTE;
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
 -[DELTA 200]-< d e l t a - 2 0 0 >
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
-83--*Concat Previous Value And Print -ve left bottom Triangle as per alphabets of col1.
+83*Concat Previous Value And Print -ve left bottom Triangle as per alphabets of col1.
 ---< everyday Practice >--
 LOGIC :
 __________________________________________________________
@@ -3010,6 +3010,61 @@ B    |  500     |   100,200,300,400,500       |    5
 SELECT *
 FROM T1;
 
+CREATE TABLE t1
+(
+    col1 CHAR(1),
+    col2 INT
+);
+DESC t1;
+DROP TABLE t1;
+TRUNCATE TABLE T1;
+
+INSERT INTO t1
+VALUES ('A', '1');
+INSERT INTO t1
+VALUES ('A', '2');
+INSERT INTO t1
+VALUES ('A', '3');
+INSERT INTO t1
+VALUES ('B', '100');
+INSERT INTO t1
+VALUES ('B', '200');
+INSERT INTO t1
+VALUES ('B', '300');
+INSERT INTO t1
+VALUES ('B', '400');
+INSERT INTO t1
+VALUES ('B', '500');
+INSERT INTO t1
+VALUES ('C', '1000');
+INSERT INTO t1
+VALUES ('C', '2000');
+INSERT INTO t1
+VALUES ('C', '3000');
+INSERT INTO t1
+VALUES ('C', '4000');
+INSERT INTO t1
+VALUES ('C', '5000');
+INSERT INTO t1
+VALUES ('C', '6000');
+INSERT INTO t1
+VALUES ('D', '10000');
+INSERT INTO t1
+VALUES ('D', '20000');
+INSERT INTO t1
+VALUES ('D', '30000');
+INSERT INTO t1
+VALUES ('D', '40000');
+INSERT INTO t1
+VALUES ('D', '50000');
+INSERT INTO t1
+VALUES ('D', '60000');
+INSERT INTO t1
+VALUES ('D', '70000');
+COMMIT;
+
+
+
 SELECT SUBSTR(agg, 1, comma_cnt)
 FROM ( --* concat comma for last position
          SELECT col1, col2, agg, occ, INSTR(agg || ',', ',', 1, occ) comma_cnt
@@ -3019,6 +3074,17 @@ FROM ( --* concat comma for last position
                          LISTAGG(col2, ',') WITHIN GROUP (ORDER BY col2) OVER (PARTITION BY col1) agg,
                          ROW_NUMBER() OVER (PARTITION BY col1 ORDER BY col2)                      occ
                   FROM T1));
+
+--* MASTER method :
+SELECT SUBSTR(new_val, 1, occ)
+FROM (
+         SELECT new_val, INSTR(new_val || ',', ',', 1, L) AS occ
+         FROM (
+                  SELECT LISTAGG(col2, ',') WITHIN GROUP (ORDER BY col2) new_val
+                  FROM T1
+                  GROUP BY col1), LATERAL (SELECT LEVEL L
+                                           FROM dual
+                                           CONNECT BY LEVEL <= REGEXP_COUNT(new_val, ',') + 1));
 
 
 84--*Print 'A' Without using 'OR' Operator
@@ -3581,20 +3647,58 @@ FROM (
 97--*** Service_name infront of product_service table.
 SELECT *
 FROM service;
-SELECT *i
-FROM product_service;
+CREATE TABLE service
+(
+    service_code CHAR(1),
+    service_name VARCHAR(20)
+);
+INSERT INTO service
+VALUES ('A', 'Service-A');
+INSERT INTO service
+VALUES ('B', 'Service-B');
+INSERT INTO service
+VALUES ('C', 'Service-C');
+INSERT INTO service
+VALUES ('D', 'Service-D');
+INSERT INTO service
+VALUES ('E', 'Service-E');
+COMMIT;
 
+SELECT *
+FROM product_service;
+CREATE TABLE product_service
+(
+    product_code CHAR(2),
+    product_desc VARCHAR(20),
+    service_code VARCHAR(20)
+);
+
+INSERT INTO product_service
+VALUES ('P1', 'PROD-P1', 'A,C');
+INSERT INTO product_service
+VALUES ('P2', 'PROD-P2', 'C,B,D');
+INSERT INTO product_service
+VALUES ('P3', 'PROD-P3', 'D,A,C,B');
+INSERT INTO product_service
+VALUES ('P4', 'PROD-P4', 'A,B,C,D');
+INSERT INTO product_service
+VALUES ('P5', 'PROD-P4', 'D,C,B,A,C');
+INSERT INTO product_service
+VALUES ('P6', 'PROD-P5', 'A,C,B,D,D,A,C');
+INSERT INTO product_service
+VALUES ('P6', 'PROD-P6', 'E,C,B,D,D,E,E');
+COMMIT;
 LOGIC
 :   --* REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2)
 _________________________________________________________________________________
 product_code | product_desc  |    service_order  | LEVEL | CODE   | service_name |
 ˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
-     P1      |   PROD -P1    | A,C        |    1  |   A    | SERVICE- A   |
-P1      |   PROD -P1    | A,C        |    2  |   C    | SERVICE- C   |
+P1           |   PROD -P1    | A,C               |    1  |   A    | SERVICE- A   |
+P1           |   PROD -P1    | A,C               |    2  |   C    | SERVICE- C   |
 
-P2      |   PROD -P2    | C,B,D       |    1  |   C    | SERVICE- C   |
-P2      |   PROD -P2    | C,B,D       |    2  |   B    | SERVICE- B   |
-P2      |   PROD -P2    | C,B,D       |    3  |   D    | SERVICE- D   |
+P2           |   PROD -P2    | C,B,D             |    1  |   C    | SERVICE- C   |
+P2           |   PROD -P2    | C,B,D             |    2  |   B    | SERVICE- B   |
+P2           |   PROD -P2    | C,B,D             |    3  |   D    | SERVICE- D   |
 
 
 --*STEP 1:
@@ -3677,6 +3781,19 @@ FROM (
                                 CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1)
          WHERE service.service_code = SUBSTR(service_order, INSTR(service_order, ',', 1, L) - 1, 1))
 ORDER BY product_code;
+
+
+--* Master Method :
+WITH CTE AS (
+    SELECT product_desc,
+           service_code,
+           REGEXP_SUBSTR(A.service_code, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS occ
+    FROM product_service A, LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(service_code, ',') + 1)
+)
+SELECT A.product_desc, A.service_code, LISTAGG(B.service_name, ',') WITHIN GROUP (ORDER BY occ)
+FROM CTE A
+         FULL OUTER JOIN service B ON B.service_code = A.occ
+GROUP BY A.product_desc, A.service_code;
 
 
 98--* Multiple Rows into single row.
@@ -4091,9 +4208,56 @@ WHERE A.manager_id = B.employee_id WHERE A.manager_id = B.employee_id
 SELECT *
 FROM salespeople;
 SELECT *
+FROM salespeoplex;
+CREATE TABLE salespeoplex ( snum INT ,name VARCHAR(20),city VARCHAR(20),comm DECIMAL(9,3) );
+INSERT INTO salespeoplex VALUES(5001,'James Hoog','New York',0.15);
+INSERT INTO salespeoplex VALUES(5002,'Nail Knite','Paris',0.13);
+INSERT INTO salespeoplex VALUES(5005,'Pit Alex','London',0.11);
+INSERT INTO salespeoplex VALUES(5006,'Mc Lyon','Paris',0.14);
+INSERT INTO salespeoplex VALUES(5003,'Lauson Hen','San Jose',0.12);
+INSERT INTO salespeoplex VALUES(5007,'Paul Adam','Rome',0.13);
+COMMIT;
+ALTER TABLE salespeoplex ADD PRIMARY KEY(snum);
+
+SELECT *
 FROM customers;
 SELECT *
+FROM customersx;
+CREATE TABLE customersx (cnum INT ,cname VARCHAR(50),city VARCHAR(50),rate INT,snum INT ) ;
+INSERT INTO customersx VALUES(3002,'Nick Rimando','New York',100,5001) ;
+INSERT INTO customersx VALUES(3007,'Brad Davis','New York',200,5001) ;
+INSERT INTO customersx VALUES(3005,'Graham Zusi','California',200,5002) ;
+INSERT INTO customersx VALUES(3008,'Julian Green','London',300,5002) ;
+INSERT INTO customersx VALUES(3004,'Fabian Johnson','Paris',300,5006) ;
+INSERT INTO customersx VALUES(3009,'Geoff Cameron','Berlin',100,5003) ;
+INSERT INTO customersx VALUES(3003,'Jozy Altidor','Moscow',200,5007) ;
+INSERT INTO customersx VALUES(3001,'Brad Guzan','London',null,5005) ;
+COMMIT;
+ALTER TABLE customersx ADD PRIMARY KEY(cnum);
+ALTER TABLE customersx ADD FOREIGN KEY(snum) REFERENCES salespeoplex(snum);
+
+SELECT *
 FROM orders;
+SELECT *
+FROM ordersx;
+CREATE TABLE ordersx(onum INT,amt DECIMAL(9,3),odate DATE, cnum INT,snum INT );
+INSERT INTO ordersx VALUES(70001,150.5,'05-OCT-2012',3005,5002);
+INSERT INTO ordersx VALUES(70009,270.65,'10-SEP-2012',3001,5005);
+INSERT INTO ordersx VALUES(70002,65.26,'05-OCT-2012',3002,5001);
+INSERT INTO ordersx VALUES(70004,110.5,'17-AUG-2012',3009,5003);
+INSERT INTO ordersx VALUES(70007,948.5,'10-SEP-2012',3005,5002);
+INSERT INTO ordersx VALUES(70005,2400.6,'27-JUL-2012',3007,5001);
+INSERT INTO ordersx VALUES(70008,5760,'10-SEP-2012',3002,5001);
+INSERT INTO ordersx VALUES(70010,1983.43,'10-OCT-2012',3004,5006);
+INSERT INTO ordersx VALUES(70003,2480.4,'10-OCT-2012',3009,5003);
+INSERT INTO ordersx VALUES(70012,250.45,'27-JUN-2012',3008,5002);
+INSERT INTO ordersx VALUES(70011,75.29,'17-AUG-2012',3003,5007);
+INSERT INTO ordersx VALUES(70013,3045.6,'25-APR-2012',3002,5001);
+COMMIT;
+ALTER TABLE ordersx ADD PRIMARY KEY(onum);
+ALTER TABLE ordersx ADD FOREIGN KEY(snum) REFERENCES salespeoplex(snum);
+ALTER TABLE ordersx ADD FOREIGN KEY(cnum) REFERENCES customersx(cnum);
+
 ˚˚˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
 onum | Amt      |  odate    | cnum | snum |
 ˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
@@ -4905,10 +5069,10 @@ Giovanni|Giovanni|1003|1003    --* not counted as pair.
 48X --*** Find all salespeople with only one customer.
 SELECT snum, sname
 FROM salespeople
-WHERE snum IN ( SELECT snum FROM orders HAVING COUNT(DISTINCT cnum) = 1 GROUP BY snum);
+WHERE snum IN (SELECT snum FROM orders HAVING COUNT(DISTINCT cnum) = 1 GROUP BY snum);
 
 
-SELECT COUNT(onum),snum
+SELECT COUNT(onum), snum
 FROM orders
 GROUP BY snum; -- * gives combo of order/salesman ===* including sum of cx GROUP BY snum
 
@@ -5089,64 +5253,128 @@ FROM salespeople A
 29X --* Find salespeople who have multiple customers.
 SELECT sname
 FROM salespeople
-WHERE snum IN (SELECT snum FROM orders HAVING COUNT( DISTINCT cnum) > 1 GROUP BY snum);
+WHERE snum IN (SELECT snum FROM orders HAVING COUNT(DISTINCT cnum) > 1 GROUP BY snum);
 
 
 -- *Alternative solution :
-SELECT snum,sname
+SELECT snum, sname
 FROM salespeople
-HAVING snum IN ( SELECT snum FROM customers HAVING COUNT(*) >1 GROUP BY snum)
-GROUP BY snum,sname;
+HAVING snum IN (SELECT snum FROM customers HAVING COUNT(*) > 1 GROUP BY snum)
+GROUP BY snum, sname;
 
 
 28X --*  Write a query that produces all customers serviced by salespeople with a commission above 12%.
 -- Output the customer's name and the salesperson's rate of commission
-SELECT cname, B.comm * 100 ||'%' AS rate
-FROM customers A,salespeople B
-WHERE A.snum=B.snum
-AND B.comm>.12;
+SELECT cname, B.comm * 100 || '%' AS rate
+FROM customers A,
+     salespeople B
+WHERE A.snum = B.snum
+  AND B.comm > .12;
 
 27X --* Count the number of salespeople currently listing orders in the Orders table.
-SELECT COUNT(DISTINCT snum) FROM orders;  --< Remove >--
+SELECT COUNT(DISTINCT snum)
+FROM orders; --< Remove >--
 
 
 26X --*  Select all customers with a rating above 200.00 --< Remove >--
 SELECT *
 FROM customers
-WHERE rate >200;
+WHERE rate > 200;
 
 
 25X --* Find all customers located in cities where Serres (SNUM 1002) has customers.
-SELECT cnum,cname,city
+SELECT cnum, cname, city
 FROM customers
-WHERE city = (SELECT city FROM salespeople WHERE sname ='Serres');
+WHERE city = (SELECT city FROM salespeople WHERE sname = 'Serres');
 
 24X--* List the largest orders for October 3, for each salesperson.
-SELECT MAX(amt),snum,odate
+SELECT MAX(amt), snum, odate
 FROM orders
 HAVING odate LIKE '%03-OCT%'
-GROUP BY snum ,odate;
+GROUP BY snum, odate;
 
 
 23X --* Find the largest order taken by each salesperson on each date, eliminating
 -- those MAX orders which are less than $3000.00 in value.
-SELECT snum,MAX(amt),TO_CHAR(odate,'YYYY-MM-DD')
+SELECT snum, MAX(amt), TO_CHAR(odate, 'YYYY-MM-DD')
 FROM orders
-HAVING SUM(amt)> 3000
-GROUP BY snum ,TO_CHAR(odate,'YYYY-MM-DD');
+HAVING SUM(amt) > 3000
+GROUP BY snum, TO_CHAR(odate, 'YYYY-MM-DD');
 
 
 22X --*  Give the salespeople's commissions as percentages instead of decimal numbers. -< Remove >-
-SELECT comm * 100 ||'%'
+SELECT comm * 100 || '%'
 FROM salespeople;
 
 
 21X --*  Find all customers whose CNUM is 1000 above the SNUM of Serres.
-SELECT cnum,cname
+SELECT cnum, cname
 FROM customers
-WHERE cnum
+WHERE cnum + 1000 > (SELECT snum FROM salespeople WHERE sname = 'Serres');
 
 
+20X --* Find all pairs of customers having the same rating.
+SELECT A.cname, A.rate, B.cname, B.rate
+FROM customers A,
+     customers B
+WHERE A.rate = B.rate
+  AND A.cname != B.cname
+
+
+19X --*rite a query that uses the EXISTS operator to extract all
+-- salespeople who have customers with a rating of 300
+SELECT *
+FROM salespeople A
+WHERE EXISTS(SELECT *
+             FROM customers
+             WHERE rate = 300
+               AND A.snum = snum)
+
+
+18X --* Select all orders that had amounts that were greater than at least
+-- one of the orders from October 6.
+SELECT onum
+FROM orders
+WHERE amt > ANY (SELECT amt FROM orders WHERE odate LIKE '%6-OCT%')
+
+
+17X --*** Give the sums of the amounts from the Orders table,grouped by date,
+-- eliminating all those dates where the SUM was not at least 2000.00 above the MAX amount
+SELECT odate, SUM(amt)
+FROM (SELECT TO_CHAR(odate, 'YYYY-MM-DD') AS odate, amt FROM orders) A
+HAVING SUM(amt) > (SELECT 2000 + MAX(amt)
+                   FROM (SELECT TO_CHAR(odate, 'YYYY-MM-DD') AS odate, amt FROM orders)
+                   WHERE A.odate = odate)
+GROUP BY odate
+
+
+SELECT ord_date, SUM (purch_amt)
+FROM orders a
+GROUP BY ord_date
+HAVING SUM (purch_amt) >
+       (SELECT 1000.00 + MAX(purch_amt)
+        FROM orders b
+        WHERE a.ord_date = b.ord_date);
+
+
+16X --*Find all customers with orders on October 3.
+--* ( Wrong answer ) * --
+SELECT *
+FROM customers
+WHERE cnum IN (SELECT cnum FROM orders WHERE odate LIKE '%03-OCT%');
+
+
+--* ( Wrong answer ) * --
+SELECT *
+FROM customers
+WHERE snum IN (SELECT snum FROM orders WHERE odate LIKE '%03-OCT%');
+
+
+--* Master Method  :
+SELECT rate
+FROM customers A, LATERAL (SELECT LEVEL L
+                           FROM dual
+                           CONNECT BY LEVEL <= 1)
 
 
 0X--* Tricky interview question.
