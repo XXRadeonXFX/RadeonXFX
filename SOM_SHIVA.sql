@@ -445,6 +445,15 @@ GROUP BY B.dep_id
 HAVING COUNT(salary) = 0; --> inside count we can use anything from first table
 
 2---* count no. of manager
+--############################################################__ELITE_METHOD
+SELECT  emp_name,CONNECT_BY_ROOT emp_name, -- BOSS NAME
+        SYS_CONNECT_BY_PATH(salary,'===*')
+FROM employeex
+WHERE CONNECT_BY_ISLEAF =0
+START WITH emp_name = 'KAYLING'
+CONNECT BY PRIOR emp_id = manager_id
+--############################################################__ELITE_METHOD
+
 --*method :1
 SELECT COUNT(emp_id)
 FROM employeex
@@ -457,9 +466,9 @@ FROM employeex A,
      employeex B
 WHERE A.manager_id = B.emp_id;
 
---*method :3
+--*MAster method :3
 --*Count of null is zero
-SELECT COUNT(DISTINCT B.emp_name)
+SELECT COUNT(DISTINCT B.emp_name) AS master_method
 FROM employeex A,
      employeex B
 WHERE A.manager_id = B.emp_id(+);
@@ -482,14 +491,16 @@ WHERE A.emp_id = B.manager_id
   AND A.salary < B.salary;
 
 --* method2
-SELECT *
+SELECT A.emp_name, A.salary, B.emp_name, B.salary
 FROM employeex A,
      (SELECT *
       FROM employeex
-      WHERE emp_id = ANY
-            (SELECT manager_id FROM employeex)) B
-WHERE A.emp_id = B.manager_id --* senior managers
-  AND A.salary < B.salary;
+      WHERE emp_id IN (SELECT manager_id FROM employeex)) B
+----* A.manager_id ==> Employees
+WHERE A.manager_id = B.emp_id
+----* if we switch the Positions like : A.emp_id = B.manager_id --* then still B.manager_id ==> employees
+HAVING A.salary > B.salary
+GROUP BY A.emp_name, A.salary, B.emp_name, B.salary
 
 5---** Most important question.
 --< null + value = null >-
@@ -498,13 +509,11 @@ WHERE A.emp_id = B.manager_id --* senior managers
 --*method :1
 SELECT emp_name, salary, commission
 FROM employeex
-WHERE salary <= ANY (SELECT salary + NVL(commission, 0) FROM employeex);
-
---* method :1 alternative
-SELECT *
-FROM employeex
-WHERE NVL(salary + commission, salary) >= ANY (SELECT salary FROM employeex);
-
+HAVING (SELECT MAX(salary + commission) FROM employeex) >=
+           ----*  2850 i.e, MAX(s+c)  >= ANY ( Salary)
+           ANY (SELECT salary FROM employeex)
+GROUP BY emp_name, salary, commission
+--* Condition to confuse somebody simply means nothing but (2850>900) ==> it will always be True
 
 --* Error
 SELECT emp_name, salary, commission
@@ -535,57 +544,33 @@ WHERE (SELECT MAX(salary + commission) FROM employeex) >=
           ANY (SELECT salary FROM employeex);
 
 6--* highest paid employees >-< Works under employee 'KAYLING'
-SELECT *
-FROM employeex
-WHERE salary = ALL
-      (SELECT MAX(salary)
-       FROM employeex
-       WHERE manager_id = ANY (SELECT emp_id
-                               FROM employeex
-                               WHERE emp_name = 'KAYLING'));
-
+-- Method  w/o using WHERE condition ☆
+SELECT emp_name, salary
+FROM employeex A
+HAVING (salary) = (SELECT MAX(salary)
+                   FROM employeex
+                   GROUP BY manager_id
+                   HAVING manager_id = (SELECT emp_id FROM employeex WHERE emp_name = 'KAYLING'))
+GROUP BY emp_name, salary
 
 7--*** highest paid emp who joined before recently joined emp of grade 2
 --* -< works at PERTH >-
 --* WITH clause won't work with "JOINS" when columns name not defined properly inside WITH
 -- -<Fix>- Column must be defined in SELECT of WITH CLAUSE
 
---*master method : with joins sub query
-SELECT *
-FROM employeex
-WHERE salary =
-      (SELECT MAX(salary)
-       FROM employeex A,
-            department B,
-            salary_grade C
-       WHERE A.dep_id = B.dep_id
-         AND salary BETWEEN min_sal AND max_sal
-         AND dep_location = 'PERTH'
-         AND hire_date < (SELECT MAX(hire_date)
-                          FROM employeex
-                          WHERE salary BETWEEN C.min_sal
-                                    AND C.max_sal))
-
--- same method /but lengthy approach.
-WITH CTE AS (
-    SELECT*
-    FROM employeex A,
-         department B
-
-WHERE A.dep_id = B.dep_id
-AND B.dep_location = 'PERTH'
-)
-----* with clause will throw error if column not defined
----* WHY ?.. because of alias A,B
-SELECT emp_id, emp_name, job_name, manager_id, hire_date, salary
-FROM CTE
-WHERE (SELECT MAX(hire_date) FROM CTE) <
-      (SELECT MAX(hire_date)
-       FROM employeex
-       WHERE salary BETWEEN (SELECT min_sal FROM salary_grade WHERE grade = 2)
-                 AND (SELECT max_sal FROM salary_grade WHERE grade = 2)
-      )
-  AND salary = (SELECT MAX(salary) FROM CTE);
+--*Hard_core Solution : w/o using WHERE
+SELECT emp_name, salary, dep_id, hire_date
+FROM employeex A
+HAVING hire_date <
+       (SELECT MAX(A.hire_date)
+        FROM employeex A,
+             salary_grade B
+        HAVING B.grade = 2
+        GROUP BY B.grade)
+   AND dep_id = (SELECT dep_id FROM department WHERE dep_location = 'PERTH')
+   AND salary = (SELECT MAX(salary) FROM employeex WHERE A.dep_id = dep_id)
+GROUP BY emp_name, salary, dep_id, hire_date
+--*Hard_core Solution : w/o using WHERE
 
 
 --* Master method : with sub_query
@@ -608,27 +593,32 @@ SELECT *
 FROM employeex A
 WHERE hire_date = (SELECT MAX(hire_date)
                    FROM employeex
-                   WHERE dep_id = A.dep_id --* equi_join
+                   WHERE dep_id = A.dep_id --* Sub_Query
                      AND A.dep_id = 3001);
 
 --* master+ method
-SELECT *
+SELECT emp_name, hire_date, dep_id, emp_id
 FROM employeex A
-WHERE hire_date = (SELECT MAX(hire_date)
-                   FROM employeex
-                   WHERE dep_id = A.dep_id
-                     AND dep_id = 3001); --* equi_join
+HAVING hire_date = (SELECT MAX(hire_date)
+                    FROM employeex
+                    WHERE A.dep_id = dep_id)
+   AND dep_id = 3001
+GROUP BY hire_date, dep_id, emp_name, emp_id
 
 
 9--* rem-une-ration (sal+commission) of Marketing department and salesman.
---* master method :
-SELECT A.*, (A.salary + A.commission) AS remuneration
+--* master method ==> w/o using WHERE condition:
+SELECT emp_name,
+       dep_id,
+       job_name,
+       salary + commission AS Renumeration
 FROM employeex A
-WHERE dep_id = ANY (SELECT dep_id
-                    FROM department
-                    WHERE dep_name = 'MARKETING'
-                      AND dep_id = A.dep_id)
-  AND job_name = 'SALESMAN';
+HAVING dep_id = (SELECT dep_id
+                 FROM department
+                 HAVING dep_name = 'MARKETING'
+                 GROUP BY dep_id, dep_name)
+   AND job_name = 'SALESMAN'
+GROUP BY salary, commission, job_name, dep_id, emp_name
 
 --* Comparison method :
 SELECT *
@@ -1025,6 +1015,79 @@ WHERE (salary + commission, commission) =
 
 22--* Display the order 1,2,3,1a,2a,3a
 -- AS 1,1a,2,2a,3,3a
+--_________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| TABLE COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+CREATE TABLE A_emp
+(
+    val VARCHAR(2)
+);
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| INSERT VALUES COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+INSERT ALL
+    INTO A_emp
+VALUES ('1')
+INTO A_emp
+VALUES ('2')
+INTO A_emp
+VALUES ('3')
+INTO A_emp
+VALUES ('1a')
+INTO A_emp
+VAlUES ('2a')
+INTO A_emp
+VALUES ('3a')
+SELECT *
+FROM dual;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| COMMIT ###### COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+COMMIT;
+
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX|  ORIGINAL ••••• CODE  |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+--############################################################__Method_1
+SELECT B.val, A.val
+FROM (
+         SELECT (CASE
+                     WHEN R_ <> ROWNUM THEN ROWNUM
+                     ELSE R_ END) AS R,
+                val
+         FROM (SELECT ROWNUM R_, val
+               FROM A_emp
+               ORDER BY val)) A
+         FULL OUTER JOIN
+         (SELECT ROWNUM R, val FROM A_emp) B
+         USING (R)
+--############################################################__Method_1
+
+
+--############################################################__Method_2
+SELECT A.val, B.val
+FROM (
+         SELECT DECODE(ROWNUM, 1, 1, 2, 3, 3, 5, 4, 2, 5, 4, 6, 6) R, val
+         FROM A_emp
+         ORDER BY val) A
+         FULL OUTER JOIN
+         (SELECT val, ROWNUM R FROM A_emp) B
+         USING (R)
+--############################################################__Method_2
+
+
+--############################################################__Method_3
+SELECT B.val, A.val
+FROM (
+         SELECT val, ROW_NUMBER() OVER ( ORDER BY val) AS R
+         FROM A_EMP) A
+         FULL OUTER JOIN
+         (SELECT val, ROWNUM R FROM A_emp) B
+         USING (R)
+--############################################################__Method_3
+
+
+--############################################################__Method_4
 WITH CTE AS (
     SELECT A.*,
            ROW_NUMBER() OVER (ORDER BY A.val)   AS RN,
@@ -1033,20 +1096,10 @@ WITH CTE AS (
 SELECT B.val, A.val
 FROM CTE A
          INNER JOIN CTE B ON A.RN = B.RN1;
+--############################################################__Method_4
 
 
----*alternative sol^n
-WITH CTE AS (
-    SELECT A.*,
-           ROW_NUMBER() OVER (ORDER BY ROWNUM ) AS RN,
-           ROW_NUMBER() OVER (ORDER BY A.val)   AS RN1
-    FROM A_emp A)
-SELECT A.val, B.val
-FROM CTE B,
-     CTE A
-WHERE B.RN1 = A.RN;
-
----*More alternative Sol^n
+--############################################################__Method_5
 WITH CTE AS
          (SELECT val, ROW_NUMBER() OVER (ORDER BY ROWNUM) AS RN
           FROM A_EMP),
@@ -1057,36 +1110,22 @@ SELECT CTE.val, CTE1.val
 FROM CTE,
      CTE1
 WHERE CTE.RN = CTE1.RN;
+--############################################################__Method_5
 
 
+--############################################################__Method_6
 --* with dense_rank()
-WITH CTE AS
-         (SELECT val, DENSE_RANK() OVER (ORDER BY ROWNUM) AS RN
-          FROM A_EMP),
-     CTE1 AS
-         (SELECT val, DENSE_RANK() OVER (ORDER BY val) AS RN
-          FROM A_EMP)
-SELECT CTE.val, CTE1.val
-FROM CTE,
-     CTE1
-WHERE CTE.RN = CTE1.RN;
-
-
-----* w/o Windows Or Aggrigate function:
+WITH CTE AS (
+    SELECT val,
+           DENSE_RANK() OVER ( ORDER BY val)   AS RN,
+           DENSE_RANK() OVER (ORDER BY ROWNUM) AS RN1
+    FROM A_emp)
 SELECT B.val, A.val
-FROM (SELECT (CASE
-                  WHEN R <> ROWNUM THEN ROWNUM
-                  ELSE R
-    END) R1,
-             val
-      FROM (
-               SELECT ROWNUM R, val
-               FROM A_emp
-               ORDER BY val)) A
-         FULL OUTER JOIN
-         (SELECT ROWNUM R, val FROM A_emp) B
-         ON A.R1 = B.R;
-
+FROM CTE A,
+     CTE B
+HAVING A.RN = ALL (SELECT RN1 FROM CTE WHERE B.RN1 = RN1)
+GROUP BY B.val, A.RN, B.RN1, A.val;
+--############################################################__Method_6
 
 23--* manager_id IN ASC || department_id IN DESC
 WITH CTE AS (
@@ -3645,49 +3684,63 @@ FROM (
 -[DELTA 200]-< d e l t a - 2 0 0 >
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
 97--*** Service_name infront of product_service table.
-SELECT *
-FROM service;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| SERVICE TABLE COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 CREATE TABLE service
 (
     service_code CHAR(1),
     service_name VARCHAR(20)
 );
-INSERT INTO service
-VALUES ('A', 'Service-A');
-INSERT INTO service
-VALUES ('B', 'Service-B');
-INSERT INTO service
-VALUES ('C', 'Service-C');
-INSERT INTO service
-VALUES ('D', 'Service-D');
-INSERT INTO service
-VALUES ('E', 'Service-E');
-COMMIT;
-
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| INSERT VALUES COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+INSERT ALL
+    INTO service
+VALUES ('A', 'Service-A')
+INTO service
+VALUES ('B', 'Service-B')
+INTO service
+VALUES ('C', 'Service-C')
+INTO service
+VALUES ('D', 'Service-D')
+INTO service
+VALUES ('E', 'Service-E')
 SELECT *
-FROM product_service;
+FROM dual;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| COMMIT ###### COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+COMMIT;
+--__________| T A B L E  -  @2 |___________________________________
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| PRODUCT TABLE COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 CREATE TABLE product_service
 (
     product_code CHAR(2),
     product_desc VARCHAR(20),
-    service_code VARCHAR(20)
+    service_order VARCHAR(20)
 );
-
-INSERT INTO product_service
-VALUES ('P1', 'PROD-P1', 'A,C');
-INSERT INTO product_service
-VALUES ('P2', 'PROD-P2', 'C,B,D');
-INSERT INTO product_service
-VALUES ('P3', 'PROD-P3', 'D,A,C,B');
-INSERT INTO product_service
-VALUES ('P4', 'PROD-P4', 'A,B,C,D');
-INSERT INTO product_service
-VALUES ('P5', 'PROD-P4', 'D,C,B,A,C');
-INSERT INTO product_service
-VALUES ('P6', 'PROD-P5', 'A,C,B,D,D,A,C');
-INSERT INTO product_service
-VALUES ('P6', 'PROD-P6', 'E,C,B,D,D,E,E');
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| INSERT VALUES COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+INSERT ALL
+INTO product_service VALUES ('P1', 'PROD-P1', 'A,C')
+INTO product_service VALUES ('P2', 'PROD-P2', 'C,B,D')
+INTO product_service VALUES ('P3', 'PROD-P3', 'D,A,C,B')
+INTO product_service VALUES ('P4', 'PROD-P4', 'A,B,C,D')
+INTO product_service VALUES ('P5', 'PROD-P4', 'D,C,B,A,C')
+INTO product_service VALUES ('P6', 'PROD-P5', 'A,C,B,D,D,A,C')
+INTO product_service VALUES ('P6', 'PROD-P6', 'E,C,B,D,D,E,E')
+SELECT * FROM dual ;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| COMMIT ###### COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 COMMIT;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX|  ORIGINAL ••••• CODE  |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 LOGIC
 :   --* REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2)
 _________________________________________________________________________________
@@ -3700,60 +3753,47 @@ P2           |   PROD -P2    | C,B,D             |    1  |   C    | SERVICE- C  
 P2           |   PROD -P2    | C,B,D             |    2  |   B    | SERVICE- B   |
 P2           |   PROD -P2    | C,B,D             |    3  |   D    | SERVICE- D   |
 
-
---*STEP 1:
-SELECT product_code, product_desc, service_order, L
-FROM product_service, LATERAL (SELECT LEVEL L
-                               FROM dual
-                               CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1);
-
---*STEP 2: But see this
-˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
---* REGEXP To extract Nth occurance to N+1 occurance
---< PRACTICE everyday >-
--- '(.*?,)
--- {'||(1-1)||'}
--- ([^,]*)'
---* METHOD 1:
-SELECT REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS A
-FROM product_service;
-
---* METHOS 2: (For single string )                      --* -2 For double string
-SELECT SUBSTR(service_order, INSTR(service_order, ',', 1, L) - 1, 1) occ, service_order, product_code
-FROM product_service, LATERAL (SELECT LEVEL L
-                               FROM dual
-                               CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1);
-
-˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
+--############################################################__Method_1
+SELECT product_code,product_desc,service_order,LISTAGG(service_name,' ===* ') WITHIN GROUP(ORDER BY service_order) AS list_service
+FROM (
+         SELECT A.*, REGEXP_SUBSTR( service_order, '(.*?,){'||(L-1)||'}([^,]*)',1,1,'',2) AS service_code
+         FROM product_service A,LATERAL ( SELECT LEVEL L FROM dual CONNECT BY LEVEL<= REGEXP_COUNT(service_order||',',',') ) ) A
+         FULL OUTER JOIN (SELECT * FROM service) B
+                         USING (service_code)
+GROUP BY product_code,product_desc,service_order
+--############################################################__Method_1
 
 
---* STEP 2: A
 
-SELECT product_code,
-       product_desc,
-       service_order,
-       L,
-       REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS A
-FROM product_service, LATERAL (SELECT LEVEL L
-                               FROM dual
-                               CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1);
+--############################################################__Method_2
+SELECT DISTINCT product_code,
+                product_desc,
+                service_order,
+                LISTAGG(service_name, ',') WITHIN GROUP (ORDER BY L) OVER (PARTITION BY product_code) service_order_new
+FROM (
+         SELECT service_name, service_order, L, product_code, product_desc
+         FROM product_service,
+              service, LATERAL (SELECT LEVEL L
+                                FROM dual
+                                CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1)
+         WHERE service.service_code = SUBSTR(service_order, INSTR(service_order, ',', 1, L) - 1, 1))
+ORDER BY product_code;
+--############################################################__Method_2
 
 
---* STEP 3: Joining
-SELECT product_code,
-       product_desc,
-       service_order,
-       L,
-       REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS Occ,
-       service.service_name
-FROM product_service,
-     service,
-    LATERAL (SELECT LEVEL L
-             FROM dual
-             CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1 )
-WHERE service.service_code = REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2)
-ORDER BY product_code, product_desc, service_order, L;
 
+--############################################################__Method_3
+WITH CTE AS (
+    SELECT product_desc,
+           service_code,
+           REGEXP_SUBSTR(A.service_code, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS occ
+    FROM product_service A, LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(service_code, ',') + 1)
+)
+SELECT A.product_desc, A.service_code, LISTAGG(B.service_name, ',') WITHIN GROUP (ORDER BY occ)
+FROM CTE A
+         FULL OUTER JOIN service B ON B.service_code = A.occ
+GROUP BY A.product_desc, A.service_code;
+--############################################################__Method_3
 
 --* FINAL STEP:
 SELECT product_code,
@@ -3767,33 +3807,6 @@ WHERE service.service_code = REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) |
 GROUP BY product_code, product_desc, service_order
 ORDER BY product_code, product_desc, service_order;
 
-
----* Another way :
-SELECT DISTINCT product_code,
-                product_desc,
-                service_order,
-                LISTAGG(service_name, ',') WITHIN GROUP (ORDER BY L) OVER (PARTITION BY product_code) service_order_new
-FROM (
-         SELECT service_name, service_order, L, product_code, product_desc
-         FROM product_service,
-              service, LATERAL (SELECT LEVEL L
-                                FROM dual
-                                CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1)
-         WHERE service.service_code = SUBSTR(service_order, INSTR(service_order, ',', 1, L) - 1, 1))
-ORDER BY product_code;
-
-
---* Master Method :
-WITH CTE AS (
-    SELECT product_desc,
-           service_code,
-           REGEXP_SUBSTR(A.service_code, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS occ
-    FROM product_service A, LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(service_code, ',') + 1)
-)
-SELECT A.product_desc, A.service_code, LISTAGG(B.service_name, ',') WITHIN GROUP (ORDER BY occ)
-FROM CTE A
-         FULL OUTER JOIN service B ON B.service_code = A.occ
-GROUP BY A.product_desc, A.service_code;
 
 
 98--* Multiple Rows into single row.
@@ -4209,54 +4222,106 @@ SELECT *
 FROM salespeople;
 SELECT *
 FROM salespeoplex;
-CREATE TABLE salespeoplex ( snum INT ,name VARCHAR(20),city VARCHAR(20),comm DECIMAL(9,3) );
-INSERT INTO salespeoplex VALUES(5001,'James Hoog','New York',0.15);
-INSERT INTO salespeoplex VALUES(5002,'Nail Knite','Paris',0.13);
-INSERT INTO salespeoplex VALUES(5005,'Pit Alex','London',0.11);
-INSERT INTO salespeoplex VALUES(5006,'Mc Lyon','Paris',0.14);
-INSERT INTO salespeoplex VALUES(5003,'Lauson Hen','San Jose',0.12);
-INSERT INTO salespeoplex VALUES(5007,'Paul Adam','Rome',0.13);
+CREATE TABLE salespeoplex
+(
+    snum  INT,
+    sname VARCHAR(20),
+    city  VARCHAR(20),
+    comm  DECIMAL(9, 3)
+);
+INSERT INTO salespeoplex
+VALUES (5001, 'James Hoog', 'New York', 0.15);
+INSERT INTO salespeoplex
+VALUES (5002, 'Nail Knite', 'Paris', 0.13);
+INSERT INTO salespeoplex
+VALUES (5005, 'Pit Alex', 'London', 0.11);
+INSERT INTO salespeoplex
+VALUES (5006, 'Mc Lyon', 'Paris', 0.14);
+INSERT INTO salespeoplex
+VALUES (5003, 'Lauson Hen', 'San Jose', 0.12);
+INSERT INTO salespeoplex
+VALUES (5007, 'Paul Adam', 'Rome', 0.13);
 COMMIT;
-ALTER TABLE salespeoplex ADD PRIMARY KEY(snum);
+ALTER TABLE salespeoplex
+    ADD PRIMARY KEY (snum);
 
 SELECT *
 FROM customers;
 SELECT *
 FROM customersx;
-CREATE TABLE customersx (cnum INT ,cname VARCHAR(50),city VARCHAR(50),rate INT,snum INT ) ;
-INSERT INTO customersx VALUES(3002,'Nick Rimando','New York',100,5001) ;
-INSERT INTO customersx VALUES(3007,'Brad Davis','New York',200,5001) ;
-INSERT INTO customersx VALUES(3005,'Graham Zusi','California',200,5002) ;
-INSERT INTO customersx VALUES(3008,'Julian Green','London',300,5002) ;
-INSERT INTO customersx VALUES(3004,'Fabian Johnson','Paris',300,5006) ;
-INSERT INTO customersx VALUES(3009,'Geoff Cameron','Berlin',100,5003) ;
-INSERT INTO customersx VALUES(3003,'Jozy Altidor','Moscow',200,5007) ;
-INSERT INTO customersx VALUES(3001,'Brad Guzan','London',null,5005) ;
+CREATE TABLE customersx
+(
+    cnum  INT,
+    cname VARCHAR(50),
+    city  VARCHAR(50),
+    rate  INT,
+    snum  INT
+);
+INSERT INTO customersx
+VALUES (3002, 'Nick Rimando', 'New York', 100, 5001);
+INSERT INTO customersx
+VALUES (3007, 'Brad Davis', 'New York', 200, 5001);
+INSERT INTO customersx
+VALUES (3005, 'Graham Zusi', 'California', 200, 5002);
+INSERT INTO customersx
+VALUES (3008, 'Julian Green', 'London', 300, 5002);
+INSERT INTO customersx
+VALUES (3004, 'Fabian Johnson', 'Paris', 300, 5006);
+INSERT INTO customersx
+VALUES (3009, 'Geoff Cameron', 'Berlin', 100, 5003);
+INSERT INTO customersx
+VALUES (3003, 'Jozy Altidor', 'Moscow', 200, 5007);
+INSERT INTO customersx
+VALUES (3001, 'Brad Guzan', 'London', null, 5005);
 COMMIT;
-ALTER TABLE customersx ADD PRIMARY KEY(cnum);
-ALTER TABLE customersx ADD FOREIGN KEY(snum) REFERENCES salespeoplex(snum);
+ALTER TABLE customersx
+    ADD PRIMARY KEY (cnum);
+ALTER TABLE customersx
+    ADD FOREIGN KEY (snum) REFERENCES salespeoplex (snum);
 
 SELECT *
 FROM orders;
 SELECT *
 FROM ordersx;
-CREATE TABLE ordersx(onum INT,amt DECIMAL(9,3),odate DATE, cnum INT,snum INT );
-INSERT INTO ordersx VALUES(70001,150.5,'05-OCT-2012',3005,5002);
-INSERT INTO ordersx VALUES(70009,270.65,'10-SEP-2012',3001,5005);
-INSERT INTO ordersx VALUES(70002,65.26,'05-OCT-2012',3002,5001);
-INSERT INTO ordersx VALUES(70004,110.5,'17-AUG-2012',3009,5003);
-INSERT INTO ordersx VALUES(70007,948.5,'10-SEP-2012',3005,5002);
-INSERT INTO ordersx VALUES(70005,2400.6,'27-JUL-2012',3007,5001);
-INSERT INTO ordersx VALUES(70008,5760,'10-SEP-2012',3002,5001);
-INSERT INTO ordersx VALUES(70010,1983.43,'10-OCT-2012',3004,5006);
-INSERT INTO ordersx VALUES(70003,2480.4,'10-OCT-2012',3009,5003);
-INSERT INTO ordersx VALUES(70012,250.45,'27-JUN-2012',3008,5002);
-INSERT INTO ordersx VALUES(70011,75.29,'17-AUG-2012',3003,5007);
-INSERT INTO ordersx VALUES(70013,3045.6,'25-APR-2012',3002,5001);
+CREATE TABLE ordersx
+(
+    onum  INT,
+    amt   DECIMAL(9, 3),
+    odate DATE,
+    cnum  INT,
+    snum  INT
+);
+INSERT INTO ordersx
+VALUES (70001, 150.5, '05-OCT-2012', 3005, 5002);
+INSERT INTO ordersx
+VALUES (70009, 270.65, '10-SEP-2012', 3001, 5005);
+INSERT INTO ordersx
+VALUES (70002, 65.26, '05-OCT-2012', 3002, 5001);
+INSERT INTO ordersx
+VALUES (70004, 110.5, '17-AUG-2012', 3009, 5003);
+INSERT INTO ordersx
+VALUES (70007, 948.5, '10-SEP-2012', 3005, 5002);
+INSERT INTO ordersx
+VALUES (70005, 2400.6, '27-JUL-2012', 3007, 5001);
+INSERT INTO ordersx
+VALUES (70008, 5760, '10-SEP-2012', 3002, 5001);
+INSERT INTO ordersx
+VALUES (70010, 1983.43, '10-OCT-2012', 3004, 5006);
+INSERT INTO ordersx
+VALUES (70003, 2480.4, '10-OCT-2012', 3009, 5003);
+INSERT INTO ordersx
+VALUES (70012, 250.45, '27-JUN-2012', 3008, 5002);
+INSERT INTO ordersx
+VALUES (70011, 75.29, '17-AUG-2012', 3003, 5007);
+INSERT INTO ordersx
+VALUES (70013, 3045.6, '25-APR-2012', 3002, 5001);
 COMMIT;
-ALTER TABLE ordersx ADD PRIMARY KEY(onum);
-ALTER TABLE ordersx ADD FOREIGN KEY(snum) REFERENCES salespeoplex(snum);
-ALTER TABLE ordersx ADD FOREIGN KEY(cnum) REFERENCES customersx(cnum);
+ALTER TABLE ordersx
+    ADD PRIMARY KEY (onum);
+ALTER TABLE ordersx
+    ADD FOREIGN KEY (snum) REFERENCES salespeoplex (snum);
+ALTER TABLE ordersx
+    ADD FOREIGN KEY (cnum) REFERENCES customersx (cnum);
 
 ˚˚˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
 onum | Amt      |  odate    | cnum | snum |
@@ -5348,13 +5413,13 @@ HAVING SUM(amt) > (SELECT 2000 + MAX(amt)
 GROUP BY odate
 
 
-SELECT ord_date, SUM (purch_amt)
-FROM orders a
-GROUP BY ord_date
-HAVING SUM (purch_amt) >
-       (SELECT 1000.00 + MAX(purch_amt)
-        FROM orders b
-        WHERE a.ord_date = b.ord_date);
+SELECT odate, SUM(amt)
+FROM ordersx a
+GROUP BY odate
+HAVING SUM(amt) >
+       (SELECT 1000.00 + MAX(amt)
+        FROM ordersx b
+        WHERE a.odate = b.odate);
 
 
 16X --*Find all customers with orders on October 3.
@@ -5375,6 +5440,107 @@ SELECT rate
 FROM customers A, LATERAL (SELECT LEVEL L
                            FROM dual
                            CONNECT BY LEVEL <= 1)
+
+
+15X --* List all the orders of salesperson Motika from the Orders table.
+SELECT * --< Remove >--
+FROM orders
+WHERE snum = ANY (SELECT snum from salespeople WHERE sname = 'Monika');
+
+
+14X --* List the names and commissions of all salespeople in London.
+SELECT sname, comm --< Remove >--
+FROM salespeople
+WHERE city = 'London';
+
+
+13X --*  Find customers in San Jose who have a rating above 200.
+SELECT * --< Remove >--
+FROM customers
+WHERE rate > 200
+  and city = 'San Jose';
+
+
+12X --*  Find the largest order taken by each salesperson.
+SELECT snum, COUNT(onum), MAX(amt)
+FROM orders
+GROUP BY snum
+HAVING COUNT(onum);
+
+
+11X --* Match salespeople to customers according to what city they lived in.
+SELECT sname, A.city, cname
+FROM salespeople A,
+     customers B
+WHERE A.city = B.city;
+
+
+10X --*  List the Customer table if and only if one or more of the customers
+-- in the Customer table are located in San Jose.
+SELECT *
+FROM customers
+WHERE city IN (SELECT city
+               FROM customers
+               HAVING COUNT(cnum) > 1
+                  AND city = 'San Jose'
+               GROUP BY city);
+
+
+09X --* Count the orders of each of the salespeople and output the results in descending order.
+SELECT COUNT(onum), snum
+FROM orders
+GROUP BY snum
+ORDER BY COUNT(onum) DESC;
+
+
+08X --* Find the names and numbers of all salespeople who had more than one customer.
+SELECT A.snum, sname
+FROM salespeople A,
+     customers B
+WHERE A.snum = B.snum
+HAVING COUNT(cnum) > 1
+GROUP BY A.snum, sname
+
+
+--* ALternative :
+SELECT snum, sname
+FROM salespeople
+WHERE snum IN (SELECT snum FROM customers HAVING COUNT(cnum) > 1 GROUP BY snum);
+
+
+07X --* List names of all customers matched with the salespeople serving them.
+SELECT cname
+FROM customers
+WHERE snum IN (SELECT snum FROM salespeople);
+
+
+06X --* Find which salespeople currently have orders in the Orders table.
+SELECT sname
+FROM salespeople
+WHERE snum IN (SELECT snum FROM orders);
+
+
+05X --* Arrange the Orders table by descending customer number
+SELECT * --< Remove >--
+FROM orders
+ORDER BY cnum DESC;
+
+
+04X --* Find the largest order taken by each salesperson on each date.
+SELECT snum, MAX(amt), TO_CHAR(odate, 'YYYY-MM-DD') As odate
+FROM orders
+GROUP BY snum, TO_CHAR(odate, 'YYYY-MM-DD');
+
+
+03XX --* From the following tables,
+-- write a SQL query to find the orders generated by the salespeople
+-- who works for customers whose id is 3007.
+-- Return ord_no, purch_amt, ord_date, customer_id, salesman_id.
+-- A customer can works only with a salespeople.
+SELECT onum, amt, odate
+
+
+02X --*
 
 
 0X--* Tricky interview question.
