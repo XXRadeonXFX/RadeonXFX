@@ -5,6 +5,38 @@ FROM DEPARTMENT;
 SELECT*
 FROM SALARY_GRADE;
 
+SELECT * FROM code;  ---* Code to run in IPYTHON
+
+----- R O U N D ----
+SELECT ROUND(19) FROM dual;   -- > 19
+SELECT ROUND(1.9) FROM dual   -- > 2
+
+----- SECOND Parameter in ROUND(  ,____):
+--##############################################
+-- +ve parameter  < ignores value before decimal >
+8.19  --- > ROUND(8.19,2) --* ROUND (.19) ==> 2
+
+--- 8 . 1 9  , 2  __means
+---  ROUND(19) ===< 19   < rigth hand side >
+
+--- 8 . 1 9 ,  1 __means
+--- ROUND(1.9)  ===< 2    < rigth hand side >
+--##############################################
+
+--##############################################
+-- -ve parameter  < ignores value after decimal >
+9.19   --- > ROUND(19.17,-1)
+
+--- 19 . 1 7  , -1   __means
+---  ROUND(1.9) ===< 2.0    < left hand side >
+answer -- 20
+
+--- 19 . 1 7 ,  -2 __means
+--- ROUND(.1)  ===< 0       < right hand side >
+answer __ ZERO™
+--##############################################
+
+
 ---* SUBSTR by DEFAULT  : SUBSTR(S,1,LENGTH_OF_STRING_BYDEFAULT)
 ---* REPLACE by DEFAULT : REPLACE(S,',', SPACE_IN_QUOTE_BYDEFAULT)
 ---* ALWAYS to Remember Commands
@@ -26,8 +58,48 @@ FROM dual;
 ALTER TABLE PRINCE.emp_fake
     MODIFY SEX INVISIBLE; ---* AS not possible WITH SYS ( may be with a HACk )
 
+ALTER TABLE HR.employeex_copy ADD PRIMARY KEY( emp_id) DEFERRABLE NOVALIDATE;
+CREATE USER HR IDENTIFIED BY hrpass;
+GRANT ALL PRIVILEGES TO HR;
+GRANT UNLIMITED TABLESPACE TO HR;
+ALTER SESSION SET "_ORACLE_SCRIPT" = true;
+----* HR SCHEMA CREATION
+---* Container  information:::;
+SELECT name,con_id FROM v$pdbs;
+SELECT NAME  FROM v$active_services;
+WHERE con_id =3;
+
+----* STEPS
+--* Connection Name
+SHOW con_name
+
+--* Connection Open Mode
+SELECT name ,open_mode FROM v$pdbs;
+
+--* Set Container
+ALTER SESSION SET CONTAINER = XEPDB1;
+
+
+---* Some format command
+COLUMN name FORMAT a20;
+
+---* UnLOCK account
+ALTER USER hr IDENTIFIED BY hrpass ACCOUNT UNLOCK;
+
+---* Connect with Hr
+CONN hr/hrpass@XEPDB1
+
+---* ALL tables
+SELECT * FROM tab;
+SHOW USER;
+
+--:> TABLE name By Using Column name !
+--############################################################
+SELECT * FROM user_tab_columns WHERE COLUMN_NAME = 'EMP_ID'  |---:>
+--############################################################
+
 ===* ROWID === archietecture === * === * === * === * === *
-0 0 0 0 0 0  ---- F F F ------- B B B B B B -------- R R R
+-0 0 0 0 0 0  ---- F F F ------- B B B B B B -------- R R R
  |_________|       |___|         |_________|          |___|
       |              |                |                 |
       |              |                |                 |
@@ -35,6 +107,24 @@ ALTER TABLE PRINCE.emp_fake
 [  4- bytes ]   [ 1.5 bytes ]   [ 2.5 - bytes  ]   [ 2  - bytes ]  = 10 bytes
 
 ˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
+DECLARE
+    V_string VARCHAR2(10):='SRIRAM';
+    V_reverse VARCHAR2(10):=NULL;
+    V_string1 VARCHAR2(10);
+    v_count NUMBER;
+BEGIN
+    v_count:=LENGTH(V_string);
+    DBMS_OUTPUT.PUT_LINE(v_count);
+    FOR CountCurr IN  REVERSE 1..v_count
+        LOOP
+            DBMS_OUTPUT.PUT_LINE(CountCurr);
+            V_string1:=SUBSTR(V_string,CountCurr,1);
+            V_reverse:=V_reverse||V_string1;
+            DBMS_OUTPUT.PUT_LINE(V_reverse);
+        END LOOP;
+END;
+/
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜Ñot Understand Yet
 PURGE TABLE A;
 DESC USER_RECYCLEBIN;
 FLASHBACK
@@ -88,7 +178,10 @@ WHERE (SELECT MAX(hire_date) FROM CTE) <
 
 --* Comparing (multiple values)Function
 -- only possible with HAVING clause.
+Ex : HAVING MAX(salary) = 6000;  <-- RIGHT###
+
 --* AS Functions won't work with WHERE clause
+Ex : WHERE MAX(salary) = 6000;  <-- Wrong
 
 
 ---* ORDER BY [ With / without GROUP BY ]
@@ -98,7 +191,8 @@ SELECT emp_name
 FROM employeex
 ORDER BY emp_id;
 
----* It will throw you an ERROR as only works with the column mentioned in front group by
+---* It will throw you an ERROR as only works with
+-- the column mentioned in front of \\ GROUP BY
 SELECT emp_name
 FROM employeex
 GROUP BY dep_id
@@ -111,17 +205,17 @@ FROM employeex
 GROUP BY dep_id, emp_id
 ORDER BY emp_id;
 
-----*Having column name With GROUP BY
----* Column name won't work without aggregate FUNCTION
+-- Aggregate FUNCTION ( MAX , MIN , AVG , SUM ,COUNT )
+
 SELECT MAX(salary)
 FROM employeex
-GROUP BY dep_id
+GROUP BY dep_id --:> this Won't work
 HAVING salary > 1000;
 
 ---* FIX
 SELECT MAX(salary)
 FROM employeex
-GROUP BY salary
+GROUP BY salary   --:> Fix
 HAVING salary > 1000;
 
 
@@ -431,18 +525,24 @@ of string
 
 === * MASTER LEVEL QUERIES * === * === * === * === * ===
 1---* count dep where no emp work.
+--############################################################_METHOD_1
 SELECT B.dep_id, COUNT(A.emp_id)
 FROM employeex A
          RIGHT OUTER JOIN department B ON A.dep_id = B.dep_id
-GROUP BY B.dep_id
-HAVING COUNT(A.emp_id) = 0;
+HAVING COUNT(A.emp_id) = 0
+GROUP BY B.dep_id;
+--############################################################_METHOD_1
 
+
+--############################################################_METHOD_2
 SELECT B.dep_id, COUNT(A.emp_id)
 FROM employeex A,
      department B
 WHERE A.dep_id(+) = B.dep_id --> RIGHT OUTER JOIN is necessary
 GROUP BY B.dep_id
 HAVING COUNT(salary) = 0; --> inside count we can use anything from first table
+--############################################################_METHOD_2
+
 
 2---* count no. of manager
 --############################################################__ELITE_METHOD
@@ -450,47 +550,75 @@ SELECT  emp_name,CONNECT_BY_ROOT emp_name, -- BOSS NAME
         SYS_CONNECT_BY_PATH(salary,'===*')
 FROM employeex
 WHERE CONNECT_BY_ISLEAF =0
-START WITH emp_name = 'KAYLING'
+START WITH manager_id is NULL
 CONNECT BY PRIOR emp_id = manager_id
 --############################################################__ELITE_METHOD
 
---*method :1
+
+
+--############################################################_METHOD_2
+SELECT COUNT(DISTINCT PRIOR emp_name)
+FROM employeex
+CONNECT BY manager_id = PRIOR emp_id
+--############################################################_METHOD_2
+
+
+--############################################################_METHOD_3
 SELECT COUNT(emp_id)
 FROM employeex
 WHERE emp_id = ANY
       (SELECT manager_id FROM employeex);
+--############################################################_METHOD_3
 
---* method :2
+
+--############################################################_METHOD_4
 SELECT COUNT(DISTINCT B.emp_id)
 FROM employeex A,
      employeex B
 WHERE A.manager_id = B.emp_id;
+--############################################################_METHOD_4
 
---*MAster method :3
+--*MAster method :5
+--############################################################_METHOD_5
 --*Count of null is zero
 SELECT COUNT(DISTINCT B.emp_name) AS master_method
 FROM employeex A,
      employeex B
 WHERE A.manager_id = B.emp_id(+);
+--############################################################_METHOD_5
 
 
 3---* max avg sal except president
 --xxxxxx-< NESTED group function >-
+--############################################################_METHOD_1
 SELECT MAX(AVG(salary))
 FROM employeex
 WHERE job_name != 'PRESIDENT'
 GROUP BY job_name;
+--############################################################_METHOD_1
+
+
+--############################################################_METHOD_2
+SELECT MAX(AVG(salary))
+FROM employeex
+-- WHERE job_name <> 'PRESIDENT'
+GROUP BY salary
+HAVING salary <> ( SELECT salary FROM employeex WHERE job_name = 'PRESIDENT' )
+--############################################################_METHOD_2
 
 
 4---**emp having salary greater than their manager (Failed..)
---* method1
+
+--############################################################_METHOD_1
 SELECT B.*
 FROM employeex A,
      employeex B
 WHERE A.emp_id = B.manager_id
   AND A.salary < B.salary;
+--############################################################_METHOD_1
 
---* method2
+
+--############################################################_METHOD_2
 SELECT A.emp_name, A.salary, B.emp_name, B.salary
 FROM employeex A,
      (SELECT *
@@ -501,12 +629,15 @@ WHERE A.manager_id = B.emp_id
 ----* if we switch the Positions like : A.emp_id = B.manager_id --* then still B.manager_id ==> employees
 HAVING A.salary > B.salary
 GROUP BY A.emp_name, A.salary, B.emp_name, B.salary
+--############################################################_METHOD_2
+
+
 
 5---** Most important question.
 --< null + value = null >-
 --< calculate emp's whose net sal >= emp sal. >-
 
---*method :1
+--############################################################_METHOD_1
 SELECT emp_name, salary, commission
 FROM employeex
 HAVING (SELECT MAX(salary + commission) FROM employeex) >=
@@ -514,6 +645,7 @@ HAVING (SELECT MAX(salary + commission) FROM employeex) >=
            ANY (SELECT salary FROM employeex)
 GROUP BY emp_name, salary, commission
 --* Condition to confuse somebody simply means nothing but (2850>900) ==> it will always be True
+--############################################################_METHOD_1
 
 --* Error
 SELECT emp_name, salary, commission
@@ -538,10 +670,14 @@ WHERE (SELECT MAX(salary + NVL(commission, 0)) FROM employeex)
 --FROM employeex A                  ---- o/p only 4 records as all other records are null
 --WHERE salary+commission >= ANY ( SELECT salary FROM employeex );
 
+
+--############################################################_METHOD_2
 SELECT emp_name, salary, commission
 FROM employeex --xx --* here comparing with max value only
 WHERE (SELECT MAX(salary + commission) FROM employeex) >=
           ANY (SELECT salary FROM employeex);
+--############################################################_METHOD_2
+
 
 6--* highest paid employees >-< Works under employee 'KAYLING'
 -- Method  w/o using WHERE condition ☆
@@ -559,6 +695,7 @@ GROUP BY emp_name, salary
 -- -<Fix>- Column must be defined in SELECT of WITH CLAUSE
 
 --*Hard_core Solution : w/o using WHERE
+--############################################################_METHOD_1
 SELECT emp_name, salary, dep_id, hire_date
 FROM employeex A
 HAVING hire_date <
@@ -570,10 +707,12 @@ HAVING hire_date <
    AND dep_id = (SELECT dep_id FROM department WHERE dep_location = 'PERTH')
    AND salary = (SELECT MAX(salary) FROM employeex WHERE A.dep_id = dep_id)
 GROUP BY emp_name, salary, dep_id, hire_date
+--############################################################_METHOD_1
 --*Hard_core Solution : w/o using WHERE
 
 
 --* Master method : with sub_query
+--############################################################_METHOD_2
 SELECT *
 FROM employeex
 WHERE salary = (
@@ -586,17 +725,25 @@ WHERE salary = (
     )
       AND dep_id = (SELECT dep_id FROM department WHERE dep_location = 'PERTH')
 );
+--############################################################_METHOD_2
+
+
 
 8--* Recently hired emp of dep_id =3001
 --* master_method
+
+--############################################################_METHOD_1
 SELECT *
 FROM employeex A
 WHERE hire_date = (SELECT MAX(hire_date)
                    FROM employeex
                    WHERE dep_id = A.dep_id --* Sub_Query
                      AND A.dep_id = 3001);
+--############################################################_METHOD_1
+
 
 --* master+ method
+--############################################################_METHOD_2
 SELECT emp_name, hire_date, dep_id, emp_id
 FROM employeex A
 HAVING hire_date = (SELECT MAX(hire_date)
@@ -604,10 +751,14 @@ HAVING hire_date = (SELECT MAX(hire_date)
                     WHERE A.dep_id = dep_id)
    AND dep_id = 3001
 GROUP BY hire_date, dep_id, emp_name, emp_id
+--############################################################_METHOD_2
+
 
 
 9--* rem-une-ration (sal+commission) of Marketing department and salesman.
 --* master method ==> w/o using WHERE condition:
+
+--############################################################_METHOD_1
 SELECT emp_name,
        dep_id,
        job_name,
@@ -619,8 +770,11 @@ HAVING dep_id = (SELECT dep_id
                  GROUP BY dep_id, dep_name)
    AND job_name = 'SALESMAN'
 GROUP BY salary, commission, job_name, dep_id, emp_name
+--############################################################_METHOD_1
+
 
 --* Comparison method :
+--############################################################_METHOD_2
 SELECT *
 FROM employeex A
 WHERE salary + commission = ANY (SELECT salary + commission
@@ -629,6 +783,8 @@ WHERE salary + commission = ANY (SELECT salary + commission
                                  WHERE B.dep_name = 'MARKETING'
                                    AND A.job_name = 'SALESMAN'
                                    AND B.dep_id = A.dep_id);
+--############################################################_METHOD_2
+
 
 
 10--* find emp of dep SYDNEY or PERTH
@@ -667,6 +823,7 @@ WHERE salary = ANY (SELECT salary
 
 
 --* Joins method
+--############################################################_METHOD_2
 SELECT *
 FROM employeex A,
      department B,
@@ -684,7 +841,7 @@ WHERE A.dep_id = B.dep_id
                                    WHERE emp_name = 'TUCKER')
     )
    OR hire_date < (SELECT hire_date FROM employeex WHERE emp_name = 'SANDRINE')
-
+--############################################################_METHOD_2
 
 --* ERROR with AND / OR operator ....?
 SELECT *
@@ -705,6 +862,7 @@ WHERE A.dep_id = C.dep_id
 
 11--* emp having grade > MARKER
 ---* Joins method
+--############################################################_METHOD_1
 SELECT *
 FROM employeex A,
      salary_grade B
@@ -718,9 +876,11 @@ WHERE salary BETWEEN min_sal AND max_sal
                                  FROM EMPLOYEEX
                                  WHERE emp_name = 'MARKER')
 );
+--############################################################_METHOD_1
 
 
 --* subquery Method
+--############################################################_METHOD_2
 SELECT *
 FROM employeex
 WHERE salary >
@@ -744,17 +904,48 @@ WHERE salary >
                                         FROM employeex
                                         WHERE emp_name = 'MARKER'))
       );
+--############################################################_METHOD_2
+
+
 
 --* mini method :
+--############################################################_METHOD_3
 SELECT *
 FROM employeex
 WHERE salary > (SELECT salary
                 FROM employeex
                 WHERE emp_name = 'MARKER');
+--############################################################_METHOD_3
+
+
+
+
+--############################################################_METHOD_4
+SELECT *
+FROM employeex
+WHERE salary > (SELECT MAX(salary)
+                FROM employeex
+                WHERE salary BETWEEN (SELECT min_sal
+                                      FROM salary_grade
+                                      WHERE grade = (SELECT grade
+                                                     FROM salary_grade
+                                                     WHERE min_sal <= (SELECT salary FROM employeex WHERE emp_name = 'MARKER')
+                                                       AND max_sal >= (SELECT salary FROM employeex WHERE emp_name = 'MARKER')))
+                          AND (SELECT max_sal
+                               FROM salary_grade
+                               WHERE grade = (SELECT grade
+                                              FROM salary_grade
+                                              WHERE min_sal <= (SELECT salary FROM employeex WHERE emp_name = 'MARKER')
+                                                AND max_sal >= (SELECT salary FROM employeex WHERE emp_name = 'MARKER'))))
+
+--############################################################_METHOD_4
+
+
 
 
 12--* emp working in same dep where KAYLING works
 --* joins method
+--############################################################_METHOD_1
 SELECT emp_id, emp_name, dep_location, salary, dep_name
 FROM employeex A,
      department B
@@ -763,15 +954,18 @@ WHERE A.dep_id = B.dep_id
                   FROM employeex
                   WHERE emp_name = 'KAYLING')
   AND emp_name <> 'KAYLING';
+--############################################################_METHOD_1
 
 
 --* sub-query method:
+--############################################################_METHOD_2
 SELECT *
 FROM employeex
 WHERE dep_id = (SELECT dep_id
                 FROM employeex
                 WHERE emp_name = 'KAYLING')
   AND emp_name <> 'KAYLING';
+--############################################################_METHOD_2
 
 
 13--* managers Senior to KAYLING and Junior to SANDRINE -< FAILED >- because of emp instead of manager
@@ -792,7 +986,6 @@ WHERE A.manager_id = B.emp_id
   AND A.hire_date > (SELECT hire_date
                      FROM employeex
                      WHERE emp_name = 'SANDRINE')
-
 AND B.manager_id is NOT NULL;
 --* Manager of Manager
 
@@ -2437,14 +2630,16 @@ FROM employeex;
 --*DIAGRAMS
 ## PRACTICE_EVERYDAY
 --* BASICS STEPs PAttern [ - ve CUT left ]
-WITH CTE AS (SELECT 'WITCHER3' S FROM dual)
-SELECT SUBSTR(S, LEVEL)                        A1,
-       SUBSTR(S, LEVEL, LENGTH(S))             A2,
-       SUBSTR(S, LEVEL, LENGTH(S) + 1 - LEVEL) A3,
-       SUBSTR(S, 1, LENGTH(S) + 1 - LEVEL)     A4,
-       RPAD(S, LENGTH(S) + 1 - LEVEL)          A5
+WITH CTE AS ( SELECT 'WITCHER3' S,ROWNUM R  FROM dual )
+SELECT   SUBSTR(S,LEVEL) A,
+         SUBSTR(S,LEVEL,LENGTH(S) ) A,
+         SUBSTR(S,1,LENGTH(S) + 1 -LEVEL) A,
+         SUBSTR(S,LEVEL,LENGTH(S)+ 1 - LEVEL ) A,
+         RPAD(REVERSE (S),LENGTH(S) + 1 -LEVEL,'x') A,
+         RPAD(S, CASE WHEN  LEVEL = LEVEL  THEN LENGTH(S) + 1 -LEVEL ELSE LENGTH(S) + 1 -LEVEL END ) A,
+         RPAD(S,DECODE( LEVEL ,LEVEL,LENGTH(S) + 1 - LEVEL )) A
 FROM CTE
-CONNECT BY LEVEL <= LENGTH(S);
+CONNECT BY LEVEL <=LENGTH(S)
 
 
 --* BASICS STEPs PAttern [ - ve CUT RIGHT ]
@@ -2567,6 +2762,14 @@ FROM (
          FROM dual
          CONNECT BY LEVEL <= 10
          ORDER BY L DESC);
+
+----*
+WITH CTE AS ( SELECT ' R A D E O N ==='S ,LEVEL L FROM  dual CONNECT BY LEVEL <=10)
+SELECT L,RN, RPAD(SUBSTR(S,L ) , RN *3,S) || RPAD(' ===',L,S)
+FROM (
+         SELECT S,L,ROW_NUMBER() OVER ( ORDER BY NULL ) AS RN
+         FROM CTE
+         ORDER BY L DESC , RN DESC )
 
 
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
@@ -2903,7 +3106,6 @@ FROM (
                                         SELECT *
                                         FROM CTE
 --WHERE ROWNUM <= (SELECT COUNT(*)/2 FROM CTE )) ;
-
 WHERE ROWNUM <= (SELECT CASE MOD(COUNT(1), 2)
                                                                     WHEN 0 THEN (COUNT(1) / 2)
                                                                     ELSE COUNT(1) / 2
@@ -3167,49 +3369,92 @@ SELECT *
 FROM TT1;
 SELECT *
 FROM TT2;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| CREATE TABLE COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+CREATE TABLE TT1( C1 VARCHAR(1) );
+CREATE TABLE TT2( C1 VARCHAR(1) );
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| INSERT VALUES COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+INSERT ALL
+INTO TT1 VALUES('A')
+INTO TT1 VALUES('B')
+INTO TT1 VALUES('C')
+INTO TT1 VALUES('D')
+INTO TT1 VALUES('E')
+SELECT * FROM dual;
+COMMIT;
+
+INSERT ALL
+INTO TT2 VALUES('A')
+INTO TT2 VALUES('C')
+INTO TT2 VALUES('E')
+INTO TT2 VALUES('G')
+SELECT * FROM dual;
+COMMIT;
+
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX|  ORIGINAL ••••• CODE  |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 
 --* EXIST   --< Practice req. >--
+--############################################################_METHOD_1
 SELECT*
 FROM TT1
 WHERE NOT EXISTS(SELECT 1
                  FROM TT2
                  WHERE TT1.c1 = TT2.c1);
+--############################################################_METHOD_1
 
+
+--############################################################_METHOD_2
 --* w/o using NOT
 SELECT *
 FROM TT1
 MINUS
 SELECT*
 FROM TT2;
+--############################################################_METHOD_2
 
 
+--############################################################_METHOD_3
 --* master Method : (CO-related SUB QUERY)
 SELECT *
 FROM TT1
 WHERE 1 > (SELECT COUNT(*)
            FROM TT2
            WHERE TT1.c1 = TT2.c1);
+--############################################################_METHOD_3
 
+
+--############################################################_METHOD_4
 ---* Ultimate method :
 SELECT*
 FROM TT1,
      TT2
 WHERE TT1.c1 = TT2.c1(+) ---* put ; and run it understand the logic
   AND TT2.c1 IS NULL;
+--############################################################_METHOD_4
 
+
+--############################################################_METHOD_5
 --* ultimate method : B
 SELECT *
 FROM TT1
          FULL OUTER JOIN TT2 ON TT1.c1 = TT2.c1 ---* put ; and run it understand the logic
 WHERE TT2.c1 IS NULL;
+--############################################################_METHOD_5
 
 
+--############################################################_METHOD_6
 --* Another method --< Practice req. >--
 SELECT *
 FROM TT1
 WHERE (SELECT COUNT(*)
        FROM TT2
        WHERE TT2.c1 = TT1.c1) = 0;
+--############################################################_METHOD_6
 
 
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
@@ -3281,16 +3526,60 @@ SELECT ADD_MONTHS(TRUNC(D, 'MONTH'), 1) - 1
 FROM CTE;
 
 
-87--*FETCH last 3 records W/o using ROWNUM / ROW_NUMBER().
+[ 87 ]:  A --*FETCH last 3 records W/o using ROWNUM / ROW_NUMBER().
+--############################################################_Method :1
 SELECT *
 FROM employeex
 OFFSET (SELECT COUNT(*) FROM employeex) - 3 ROW FETCH NEXT 3 ROWS ONLY;
+--############################################################_Method :1
 
 
+--############################################################_Method :2
 --* ROWID [ co - related subquery method]
 SELECT *
 FROM employeex A
 WHERE 3 > (SELECT COUNT(*) FROM employeex B WHERE A.ROWID < B.ROWID);
+--############################################################_Method :2
+
+
+87: B ---* First and last row of a table
+--############################################################_Method :1
+WITH CTE1 AS (
+    SELECT * FROM employeex  FETCH FIRST ROW ONLY ) ,CTE2 AS
+         ( SELECT *
+           FROM employeex
+           OFFSET ( (SELECT COUNT(1) FROM employeex) - 1  )ROW FETCH NEXT 1 ROW ONLY )
+SELECT *
+FROM CTE1
+UNION ALL
+SELECT * FROM CTE2
+--############################################################_Method :1
+
+
+
+--############################################################_Method :2
+SELECT * FROM employeex A
+WHERE 13 = (SELECT  COUNT(1) FROM employeex
+            WHERE A.ROWID < ROWID)
+UNION ALL
+SELECT *
+FROM employeex A
+WHERE  1 > (SELECT COUNT(1) FROM employeex
+            WHERE A.ROWID < ROWID )
+
+-- * this Method compares 1st row of Alias A
+-- with all rows of internal co-related nested Query
+--############################################################_Method :2
+
+
+
+--############################################################_Method :3
+SELECT * FROM (
+                  SELECT A.* ,ROW_NUMBER() OVER (ORDER BY ROWID) AS RN,
+                         COUNT(*) OVER() AS cnt
+                  FROM employeex A )
+WHERE RN = 1 OR RN = CNT
+--############################################################_Method :3
 
 
 88--*Get diagonal data from the table.
@@ -3480,6 +3769,35 @@ ORDER BY R;
 --* CAST() ===* value into numerical datatype
 SELECT *
 FROM mix;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| TABLE CREATION CoMManD |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+CREATE TABLE mix(C1 VARCHAR(10) );
+
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| INSERT VALUES COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+INSERT ALL
+INTO mix VALUES('1')
+INTO mix VALUES('2')
+INTO mix VALUES('A')
+INTO mix VALUES('ABC')
+INTO mix VALUES('3.25')
+INTO mix VALUES('5.6')
+INTO mix VALUES('XYZ')
+INTO mix VALUES('M')
+INTO mix VALUES('4')
+INTO mix VALUES('100')
+INTO mix VALUES('TEST')
+INTO mix VALUES('A.B.C')
+SELECT * FROM dual;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX| COMMIT ###### COMMAND |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
+COMMIT ;
+--_________________________________________________________________--
+--<  XXXXXXXXXXXXXXXXX|  ORIGINAL CAST CODE  |XXXXXXXXXXXXXXXXX   >-
+--˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 
 --* CAST exception:                    ---* String won't Work here.
 SELECT C1, CAST(C1 AS NUMBER DEFAULT - 9999 ON CONVERSION ERROR)
@@ -3503,6 +3821,7 @@ FROM MIX
 WHERE CAST(C1 AS NUMBER DEFAULT - 999 ON CONVERSION ERROR) <> -999;
 
 --* STEP 3:
+--############################################################__Method_1
 SELECT A.c1 AS Str_data, B.c1 AS Num_data
 FROM (
          SELECT C1, ROWNUM R
@@ -3513,19 +3832,45 @@ FROM (
      FROM mix
      WHERE CAST(C1 AS NUMBER DEFAULT - 999 ON CONVERSION ERROR) <> -999) B
                          ON A.R = B.R;
+--############################################################__Method_1
 
 
+
+--############################################################__Method_2
+WITH CTE1 AS
+(   SELECT C1 AS X, ROWNUM R
+    FROM mix
+    WHERE CAST( C1 AS NUMBER  DEFAULT -999 ON CONVERSION ERROR ) <> -999 ),
+CTE2 AS
+(   SELECT C1 AS Y,ROWNUM R
+    FROM mix
+    WHERE CAST( C1 AS NUMBER DEFAULT -999 ON CONVERSION ERROR) = -999 )
+SELECT X,Y FROM CTE1,CTE2
+WHERE CTE1.R =CTE2.R;
+--############################################################__Method_2
+
+
+93 : B --*Fetch Number and strings in to 2 Separate Columns.
 --* Tricky question using REGEXP_REPLACE :
-SELECT REGEXP_REPLACE(A, '[A-Za-z]') AS Numbers_A,
-       REGEXP_REPLACE(A, '[0-9]')    AS Letters_A,
-       A,
-       REGEXP_REPLACE(B, '[A-za-z]') AS Number_B,
-       REGEXP_REPLACE(B, '[0-9]')    AS LETTERS_B,
-       B
-FROM mix1;
+-----------+
+abc | 123  |
+123 | abc  |
+ab12| yz   |
+yz12| ab   |
+-----------+
 
+--############################################################__Method_1
+SELECT REGEXP_REPLACE(A,'[A-Za-z]') AS NUM_col1, --:> Opposite
+       REGEXP_REPLACE(A,'[0-9]') AS CHAR_col1,   --:> Opposite
+       A as A_original,
+       REGEXP_REPLACE(B,'[A-Za-z]]') AS NUM_col2,
+       REGEXP_REPLACE(B,'[0-9]') AS CHAR_col2,
+       B as A_original
+FROM  mix1;
+--############################################################__Method_1
 
---*Full-version:
+--*Full-version_CODE:
+--############################################################__Method_1_B
 SELECT*
 FROM mix1;
 WITH CTE AS (
@@ -3542,6 +3887,24 @@ FROM (
                 LISTAGG(c3, ',') WITHIN GROUP (ORDER BY c3) gamma,
                 LISTAGG(c4, ',') WITHIN GROUP (ORDER BY c4) lemda
          FROM CTE), LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(alpha, ',') + 1);
+--############################################################__Method_1_B
+
+
+
+--############################################################__Method_1_C
+WITH CTE AS
+       ( SELECT REGEXP_REPLACE(A ,'[A-Za-z]') AS C1,
+                REGEXP_REPLACE(A,'[0-9]') AS C2,
+                REGEXP_REPLACE(B,'[A-Za-z]') AS C3,
+                REGEXP_REPLACE(B,'[0-9]') AS C4
+         FROM mix1 )
+SELECT REGEXP_SUBSTR(gamma,'(.*?,){'||(L-1)||'}([^,]*)',1,1,'',2) A,
+     REGEXP_SUBSTR(lambda,'(.*?,){'||(L-1)||'}([^,]*)',1,1,'',2) B
+FROM (
+       SELECT LISTAGG(C1,',') WITHIN GROUP(ORDER BY C1) ||','|| LISTAGG(C3,',')WITHIN GROUP (ORDER BY C3) gamma,
+              LISTAGG(C2,',')WITHIN GROUP(ORDER BY C2) ||','|| LISTAGG(C4,',')WITHIN GROUP(ORDER BY C4) lambda
+       FROM CTE ),LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL<=REGEXP_COUNT(lambda||',',',') )
+--############################################################__Method_1_C
 
 
 94--* Additional question.
@@ -3742,7 +4105,7 @@ COMMIT;
 --<  XXXXXXXXXXXXXXXXX|  ORIGINAL ••••• CODE  |XXXXXXXXXXXXXXXXX   >-
 --˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜--
 LOGIC
-:   --* REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2)
+:--* REGEXP_SUBSTR(service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2)
 _________________________________________________________________________________
 product_code | product_desc  |    service_order  | LEVEL | CODE   | service_name |
 ˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
@@ -3781,19 +4144,20 @@ ORDER BY product_code;
 --############################################################__Method_2
 
 
-
 --############################################################__Method_3
 WITH CTE AS (
     SELECT product_desc,
-           service_code,
-           REGEXP_SUBSTR(A.service_code, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS occ
-    FROM product_service A, LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(service_code, ',') + 1)
+           service_order,
+           REGEXP_SUBSTR(A.service_order, '(.*?,){' || (L - 1) || '}([^,]*)', 1, 1, '', 2) AS occ
+    FROM product_service A, LATERAL (SELECT LEVEL L FROM dual CONNECT BY LEVEL <= REGEXP_COUNT(service_order, ',') + 1)
 )
-SELECT A.product_desc, A.service_code, LISTAGG(B.service_name, ',') WITHIN GROUP (ORDER BY occ)
+SELECT A.product_desc, A.service_order, LISTAGG(B.service_name, ',') WITHIN GROUP (ORDER BY occ)
 FROM CTE A
          FULL OUTER JOIN service B ON B.service_code = A.occ
-GROUP BY A.product_desc, A.service_code;
+GROUP BY A.product_desc, A.service_order;
 --############################################################__Method_3
+
+SELECT * FROM product_service;
 
 --* FINAL STEP:
 SELECT product_code,
@@ -4088,6 +4452,20 @@ FROM (
      ON B.R2 = C.R3;
 
 
+--###################################################################_METHOD_X
+WITH CTE1 AS
+         ( SELECT C1,ROW_NUMBER() OVER (ORDER BY C1) R1
+           FROM null1 )  ,
+     CTE2 AS
+         (SELECT C2,ROW_NUMBER() OVER (ORDER BY C2) R2
+          FROM null1 ) ,
+     CTE3 AS
+         ( SELECT C3,ROW_NUMBER() OVER (ORDER BY C3) R3
+           FROM null1 )
+SELECT C1,C2,C3 FROM CTE1,CTE2,CTE3
+WHERE R1=R2 AND R1=R3;
+--###################################################################_METHOD_X
+
 106--* Group by vs Having .[ order can be manipulated ] ****
 SELECT sum(amt)
 FROM orders
@@ -4096,25 +4474,77 @@ GROUP BY cnum;
 
 
 
-˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
-__***_*** Duplication Methods ***_***__
-˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜˜
+--###################################################################
+===/\===/\===/\===/\     Duplication Methods     /\===/\===/\===/\===
+--###################################################################
 --* Check_constraints
 SELECT *
 FROM USER_CONSTRAINTS
-WHERE table_name = 'EMP_FAKE';
+WHERE table_name = 'EMPLOYEEX';
 
-==* Method : A
+==* Method : 1
+--###################################################################_METHOD_1
+---*   To fetch all the duplicate records
 SELECT *
-FROM emp_fake;
---* Query
-SELECT *
-FROM emp_fake A
-WHERE 2 = (SELECT COUNT(*)
-           FROM emp_fake
-           WHERE A.first_name = first_name);
+FROM employeex A
+WHERE 2  = (SELECT COUNT(*)
+           FROM employeex
+           WHERE A.salary = salary );
+--###################################################################_METHOD_1
 
-===* Method : B
+
+===* Method : 2
+--###################################################################_METHOD_2
+--* To Fetch Only DISTINCT duplicates
+SELECT *
+FROM employeex A
+WHERE ROWID >
+( SELECT  MIN(ROWID) FROM employeex
+    WHERE A.salary =salary
+    )
+--###################################################################_METHOD_2
+
+
+===* Method : 3
+--###################################################################_METHOD_3
+---* using HAVING and Count(*)
+SELECT salary ,COUNT(1)
+FROM employeex A
+HAVING COUNT(1) >1
+GROUP BY salary
+--###################################################################_METHOD_3
+
+===* Method : 4
+--###################################################################_METHOD_4
+---* using ROW_NUMBER
+SELECT * FROM (
+SELECT salary ,ROW_NUMBER() OVER(PARTITION  BY salary  ORDER BY salary ) X
+FROM employeex )
+WHERE X = 2
+--###################################################################_METHOD_4
+
+
+===* Method : 5
+--###################################################################_METHOD_5
+--* using Dense rank
+SELECT salary
+FROM (
+SELECT salary, DENSE_RANK() OVER (ORDER BY salary ) AS X
+FROM employeex A )
+HAVING COUNT(X) >1
+GROUP BY salary
+--###################################################################_METHOD_5
+
+
+
+===* Method : 6 < Practise EVERYDAY>
+--###################################################################_METHOD_6
+---* using Lateral Join
+SELECT *
+FROM employeex A,
+     LATERAL ( SELECT  COUNT(*) C  FROM employeex  WHERE A.salary = salary)
+WHERE C =2;
+--###################################################################_METHOD_6
 
 
 --<|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|/|\|/|\/|\|/|\|/|\|>--
@@ -5540,8 +5970,68 @@ GROUP BY snum, TO_CHAR(odate, 'YYYY-MM-DD');
 SELECT onum, amt, odate
 
 
-02X --*
+02X --* Prime Number in Single line 'SEPERATED BY &'
+WITH CTE AS (
+    SELECT LEVEL + 1  L FROM dual
+    CONNECT BY LEVEL <= 999 )
+SELECT LISTAGG( CTE.L ,'&') WITHIN GROUP(ORDER BY CTE.L)
+FROM CTE
+WHERE NOT EXISTS( SELECT 1 FROM  CTE  A
+                  WHERE CTE.L > A.L AND REMAINDER( CTE.L ,A.L) = 0);
 
+
+
+SELECT LISTAGG(prime_number,'&') WITHIN GROUP (ORDER BY prime_number) AS NUMBERS
+FROM(
+        select L prime_number
+        from (select level L from dual connect by level <= 1000)
+           , (select level M from dual connect by level <= 1000)
+        where m<=l
+        group by l
+        having count(case L/m when trunc(L/m) then 'Y' end) = 2);
+
+
+
+01X --* Count words from whole table
+
+--############################################################_METHOD_1
+WITH CTE AS (
+    SELECT col_val
+    FROM (SELECT emp_name,
+                 TO_CHAR(emp_id)     emp_id,
+                 TO_CHAR(dep_id)     dep_id,
+                 job_name,
+                 TO_CHAR(commission) commission,
+                 TO_CHAR(salary)     salary,
+                 TO_CHAR(hire_date)  hire_date
+          FROM employeex)
+        UNPIVOT ( col_val FOR col_name IN ( emp_id , emp_name,salary,commission,dep_id,job_name,hire_date) )
+)SELECT LISTAGG(coL_val, ',') WITHIN GROUP ( ORDER BY ROWNUM),COUNT(col_vaL) AS words FROM CTE
+WHERE REGEXP_COUNT(col_val,'E') >0;
+--############################################################_METHOD_1
+
+
+--############################################################_METHOD_2
+WITH CTE AS (
+    SELECT *
+    FROM (
+        SELECT *
+        FROM (SELECT TO_CHAR(emp_id)     emp_id,
+                     emp_name,
+                     job_name,
+                     TO_CHAR(manager_id) manager_id,
+                     TO_CHAR(dep_id)     dep_id,
+                     TO_CHAR(salary)     salary,
+                     TO_CHAR(hire_date)  hire_date
+              FROM employeex)
+            UNPIVOT ( col_val FOR col_name IN ( emp_id , emp_name,job_name,manager_id ,emp_id,salary,hire_date,dep_id))
+    ) UNPIVOT ( X for Y In ( col_name,col_val))
+) SELECT  LISTAGG( X,',') WITHIN GROUP (ORDER BY L) AS word,
+         COUNT( X)
+         FROM CTE,LATERAL( SELECT LEVEL L FROM dual CONNECT BY LEVEL <=1 )
+WHERE REGEXP_COUNT( X,'E') >0;
+
+--############################################################_METHOD_2
 
 0X--* Tricky interview question.
 SELECT *
